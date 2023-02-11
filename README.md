@@ -1,4 +1,8 @@
 # RT-Thread-Source-Notes
+<p align="center">
+<img src="figure/logo.png" width="80%" >
+</p>
+
 RT-Thread内核源码中文注释，基于4.04版本。
 
 ### （1）src中文注释
