@@ -21,9 +21,12 @@ RT-Thread内核源码中文注释，基于4.04版本。
 
 ### 【2】设备驱动中文注释（CH32V3）
 
+- 2023/2/13 ~ 2023/2/14 添加串口设备框架中文注释 
 - ...
 
-![](figure/end.jpg)
+<p align="center">
+<img src="figure/bj.jpg" width="80%" >
+</p>
 
 
 
