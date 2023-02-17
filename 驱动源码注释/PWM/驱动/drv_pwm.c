@@ -789,25 +789,26 @@ static rt_err_t ch32_pwm_device_get(struct rt_device_pwm* device, struct rt_pwm_
     rt_uint32_t tim_clock;
     /* 强制设备类型转换 */
     pwm_device = (struct rtdevice_pwm_device*)device;
-    /* 获取总线时钟频率 */
+    /* 获取定时器所在总线时钟频率 */
     tim_clock = ch32_tim_clock_get(pwm_device->periph);
     /* 获取PWM输出通道号  */
     channel_index = configuration->channel;
     /* 设置周期重装载值 */
     arr_counter = pwm_device->periph->ATRLR + 1;
-    /* 设置分频值 */
+    /* 设置分频系数 */
     prescaler = pwm_device->periph->PSC + 1;
-    /* */
+    /*  设置频率 */
     sample_freq = (tim_clock / prescaler) / arr_counter;
 
-    /* unit:ns */
+    /* 配置周期 单位:ns */
     configuration->period = 1000000000 / sample_freq;
 
-    /* */
+    /* 判断通道 */
     if (channel_index == 1)
     {
-        /* 获取*/
+        /* 获取比较寄存器中的值 */
         ccr_counter = pwm_device->periph->CH1CVR + 1;
+        /* 更新计算脉冲宽度 单位:ns*/
         configuration->pulse = ((ccr_counter * 100) / arr_counter) * configuration->period / 100;
     }
     else if (channel_index == 2)
@@ -833,6 +834,7 @@ static rt_err_t ch32_pwm_device_get(struct rt_device_pwm* device, struct rt_pwm_
     return RT_EOK;
 }
 
+/* */
 static rt_err_t ch32_pwm_device_set(struct rt_device_pwm* device, struct rt_pwm_configuration* configuration)
 {
     struct rtdevice_pwm_device* pwm_device;
@@ -842,18 +844,21 @@ static rt_err_t ch32_pwm_device_set(struct rt_device_pwm* device, struct rt_pwm_
     TIM_TimeBaseInitTypeDef TIM_TimeBaseInitType;
     TIM_OCInitTypeDef TIM_OCInitType;
 
+    /* 强制设备类型转换 */
     pwm_device = (struct rtdevice_pwm_device*)device;
+    /* 获取定时器所在总线时钟频率 */
     tim_clock = ch32_tim_clock_get(pwm_device->periph);
+    /* 配置PWM输出通道  */
     channel_index = configuration->channel;
-
-    /* change to freq, unit:Hz */
+    /* PWM频率 */
     sample_freq = 1000000000 / configuration->period;
 
     /* counter = (tim_clk / prescaler) / sample_freq */
     /* normally, tim_clk is not need div, if arr_counter over 65536, need div. */
     prescaler = 1;
+    /* 重装载寄存器的值 */
     arr_counter = (tim_clock / prescaler) / sample_freq;
-
+    /* 超出最大值 */
     if (arr_counter > MAX_COUNTER)
     {
         /* need div tim_clock
@@ -869,6 +874,7 @@ static rt_err_t ch32_pwm_device_set(struct rt_device_pwm* device, struct rt_pwm_
         arr_counter = (tim_clock / prescaler) / sample_freq;
     }
     /* ccr_counter = duty cycle * arr_counter */
+    /* 设置脉冲宽度值 */
     ccr_counter = (configuration->pulse * 100 / configuration->period) * arr_counter / 100;
 
     /* check arr_counter > 1, cxx_counter > 1 */
@@ -881,7 +887,7 @@ static rt_err_t ch32_pwm_device_set(struct rt_device_pwm* device, struct rt_pwm_
         ccr_counter = MIN_PULSE;
     }
 
-    /* TMRe base configuration */
+    /* 定时器配置 */
     TIM_TimeBaseStructInit(&TIM_TimeBaseInitType);
     TIM_TimeBaseInitType.TIM_Period = arr_counter - 1;
     TIM_TimeBaseInitType.TIM_Prescaler = prescaler - 1;
@@ -919,8 +925,9 @@ static rt_err_t ch32_pwm_device_set(struct rt_device_pwm* device, struct rt_pwm_
     {
         return -RT_EINVAL;
     }
-
+    /* 使能自动重装载 */
     TIM_ARRPreloadConfig(pwm_device->periph, ENABLE);
+    /* 输出使能 */
     TIM_CtrlPWMOutputs(pwm_device->periph, ENABLE);
 
     return RT_EOK;
