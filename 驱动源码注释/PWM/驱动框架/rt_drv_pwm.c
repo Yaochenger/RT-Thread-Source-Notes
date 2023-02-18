@@ -1,28 +1,40 @@
 /*
- * Copyright (c) 2006-2021, RT-Thread Development Team
+ * Copyright (c) 2006-2022, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author       Notes
  * 2018-05-07     aozima       the first version
+ * 2022-05-14     Stanley Lwin add pwm function
+ * 2022-07-25     liYony       fix complementary outputs and add usage information in finsh
+ * 2022-08-31     liYony       Add complementary output section to framework for management
+ * 2022-09-24     qiyu         Add dead-time and phase configuration
  */
 
-#include <string.h>
-
-#include <drivers/rt_drv_pwm.h>
-
+#include <rtdevice.h>
+/* PWM¿ØÖÆ */
 static rt_err_t _pwm_control(rt_device_t dev, int cmd, void *args)
 {
     rt_err_t result = RT_EOK;
-    /* å¼ºåˆ¶ç±»åž‹è½¬æ¢ */
+    /* Ç¿ÖÆ×ªÎª PWMÉè±¸ */
     struct rt_device_pwm *pwm = (struct rt_device_pwm *)dev;
-
-    /* */
-    if (pwm->ops->control)
+    /* PWMÅäÖÃ */
+    struct rt_pwm_configuration *configuration = (struct rt_pwm_configuration *)args;
+    /* ÅÐ¶ÏÃüÁî */
+    switch (cmd)
     {
-        /* è°ƒç”¨PWMè®¾å¤‡çš„æŽ§åˆ¶å‡½æ•°  */
-        result = pwm->ops->control(pwm, cmd, args);
+        /* */
+        case PWMN_CMD_ENABLE:
+            configuration->complementary = RT_TRUE;
+            break;
+        case PWMN_CMD_DISABLE:
+            configuration->complementary = RT_FALSE;
+            break;
+        default:
+            if(pwm->ops->control)
+                result = pwm->ops->control(pwm, cmd, args);
+            break;
     }
 
     return result;
@@ -34,30 +46,29 @@ pos: channel
 void *buffer: rt_uint32_t pulse[size]
 size : number of pulse, only set to sizeof(rt_uint32_t).
 */
-/* PWMè¯»
- * ï¼ˆ1ï¼‰è®¾å¤‡
- * ï¼ˆ2ï¼‰ */
+/* */
+/* PWMÉè±¸¿ò¼Ü¶Á API */
 static rt_size_t _pwm_read(rt_device_t dev, rt_off_t pos, void *buffer, rt_size_t size)
 {
     rt_err_t result = RT_EOK;
-    /* å¼ºåˆ¶ç±»åž‹è½¬æ¢ */
+    /* Ç¿ÖÆÉè±¸ÀàÐÍ×ª»» */
     struct rt_device_pwm *pwm = (struct rt_device_pwm *)dev;
-    /* è„‰å†²å®½åº¦ */
+    /* »ñÈ¡Êý¾Ý±£´æµØÖ· */
     rt_uint32_t *pulse = (rt_uint32_t *)buffer;
-    /* PWMé…ç½® */
+    /* ³õÊ¼»¯ÅäÖÃ */
     struct rt_pwm_configuration configuration = {0};
-
-    /* é…ç½®é€šé“ */
-    configuration.channel = pos;
-
+    /* ÉèÖÃPWMÍ¨µÀ */
+    configuration.channel = (pos > 0) ? (pos) : (-pos);
+    /* ÅÐ¶Ï¿ØÖÆº¯ÊýÊÇ·ñ±»×¢²á */
     if (pwm->ops->control)
     {
+        /* Ö´ÐÐÂö³å´ø¿í»ñÈ¡ */
         result = pwm->ops->control(pwm, PWM_CMD_GET,  &configuration);
         if (result != RT_EOK)
         {
             return 0;
         }
-        /* èŽ·å–PWMè„‰å†²å®½åº¦  */
+        /* ½«¶ÁÈ¡µ½µÄÂö³å´ø¿í±£´æÖÁbuffer */
         *pulse = configuration.pulse;
     }
 
@@ -69,26 +80,31 @@ pos: channel
 void *buffer: rt_uint32_t pulse[size]
 size : number of pulse, only set to sizeof(rt_uint32_t).
 */
+/* */
+/* PWMÉè±¸¿ò¼ÜÐ´ API */
 static rt_size_t _pwm_write(rt_device_t dev, rt_off_t pos, const void *buffer, rt_size_t size)
 {
     rt_err_t result = RT_EOK;
-    /* å¼ºåˆ¶ç±»åž‹è½¬æ¢ */
+    /* Ç¿ÖÆÀàÐÍ×ª»» */
     struct rt_device_pwm *pwm = (struct rt_device_pwm *)dev;
+    /* »ñÈ¡bufferµÄµØÖ· */
     rt_uint32_t *pulse = (rt_uint32_t *)buffer;
+    /* ³õÊ¼»¯PWMÉè±¸ÅäÖÃ */
     struct rt_pwm_configuration configuration = {0};
-
-    configuration.channel = pos;
-
+    /* ÉèÖÃPWMÍ¨µÀ */
+    configuration.channel = (pos > 0) ? (pos) : (-pos);
+    /* ÅÐ¶Ï¿ØÖÆº¯ÊýÊÇ·ñ±»×¢²á */
     if (pwm->ops->control)
     {
+        /* ¶ÁÈ¡Éè±¸µÄÂö³å¿í¶È */
         result = pwm->ops->control(pwm, PWM_CMD_GET, &configuration);
         if (result != RT_EOK)
         {
             return 0;
         }
-
+        /* ±£´æÉè±¸µÄÂö³å¿í¶È */
         configuration.pulse = *pulse;
-
+        /* ÉèÖÃÉè±¸µÄÂö³å¿í¶È */
         result = pwm->ops->control(pwm, PWM_CMD_SET, &configuration);
         if (result != RT_EOK)
         {
@@ -98,37 +114,35 @@ static rt_size_t _pwm_write(rt_device_t dev, rt_off_t pos, const void *buffer, r
 
     return size;
 }
-
-
+/*  */
+/*  PWMÉè±¸×¢²á */
 rt_err_t rt_device_pwm_register(struct rt_device_pwm *device, const char *name, const struct rt_pwm_ops *ops, const void *user_data)
 {
     rt_err_t result = RT_EOK;
-
-    memset(device, 0, sizeof(struct rt_device_pwm));
-
-#ifdef RT_USING_DEVICE_OPS
-    device->parent.ops = &pwm_device_ops;
-#else
+    /*  ³õÊ¼»¯ÉêÇëµÄ¿Õ¼ä */
+    rt_memset(device, 0, sizeof(struct rt_device_pwm));
+    /*  ½«PWMÉè±¸×¢²áµ½Éè±¸¿ò¼Ü */
     device->parent.init = RT_NULL;
     device->parent.open = RT_NULL;
     device->parent.close = RT_NULL;
-    device->parent.read  = _pwm_read;
-    device->parent.write = _pwm_write;
-    device->parent.control = _pwm_control;
-#endif /* RT_USING_DEVICE_OPS */
-
-    device->parent.type         = RT_Device_Class_Miscellaneous;
-    device->ops                 = ops;
-    device->parent.user_data    = (void *)user_data;
-
+    device->parent.read  = _pwm_read;       /* PWMÉè±¸¶ÁAPI */
+    device->parent.write = _pwm_write;      /* PWMÉè±¸Ð´API */
+    device->parent.control = _pwm_control;  /* PWMÉè±¸¿ØÖÆAPI */
+    /*  */
+    device->parent.type         = RT_Device_Class_PWM; /* PWMÉè±¸ */
+    device->ops                 = ops;                 /* PWMÉè±¸·½·¨ */
+    device->parent.user_data    = (void *)user_data;   /* userdata PWMÉè±¸Î´ÓÃ */
+    /*  ÕýÊ½¿ªÊ¼½«PWMÉè±¸×¢²áµ½Éè±¸¿ò¼Ü */
     result = rt_device_register(&device->parent, name, RT_DEVICE_FLAG_RDWR);
 
     return result;
 }
-
+/*  */
+/*  PWMÉè±¸Ê¹ÄÜ */
 rt_err_t rt_pwm_enable(struct rt_device_pwm *device, int channel)
 {
     rt_err_t result = RT_EOK;
+    /*  Éè±¸ÅäÖÃ */
     struct rt_pwm_configuration configuration = {0};
 
     if (!device)
@@ -136,16 +150,36 @@ rt_err_t rt_pwm_enable(struct rt_device_pwm *device, int channel)
         return -RT_EIO;
     }
 
-    configuration.channel = (channel > 0) ? (channel) : (-channel);         /* Make it is positive num forever */
-    configuration.complementary = (channel > 0) ? (RT_FALSE) : (RT_TRUE);   /* If nagetive, it's complementary */
+    /* Make it is positive num forever */
+    /*  ÉèÖÃÊä³öÍ¨µÀ */
+    configuration.channel = (channel > 0) ? (channel) : (-channel);
+
+    /* If channel is a positive number (0 ~ n), it means using normal output pin.
+     * If channel is a negative number (0 ~ -n), it means using complementary output pin. */
+    /*  Í¨µÀÊ¹ÄÜ
+     * - channnel < 0
+          * Ê¹ÄÜ»¥²¹Í¨µÀ  Ê¹ÄÜÍ¨µÀ
+     * - channel > 0
+          * ¹Ø±Õ»¥²¹Í¨µÀ Ê¹ÄÜÍ¨µÀ
+     */
+    if(channel > 0)
+    {
+        result = rt_device_control(&device->parent, PWMN_CMD_DISABLE, &configuration);
+    }
+    else
+    {
+        result = rt_device_control(&device->parent, PWMN_CMD_ENABLE, &configuration);
+    }
+
     result = rt_device_control(&device->parent, PWM_CMD_ENABLE, &configuration);
 
     return result;
 }
-
+/*  PWMÊ§ÄÜ */
 rt_err_t rt_pwm_disable(struct rt_device_pwm *device, int channel)
 {
     rt_err_t result = RT_EOK;
+    /*  Éè±¸ÅäÖÃ */
     struct rt_pwm_configuration configuration = {0};
 
     if (!device)
@@ -153,13 +187,32 @@ rt_err_t rt_pwm_disable(struct rt_device_pwm *device, int channel)
         return -RT_EIO;
     }
 
-    configuration.channel = (channel > 0) ? (channel) : (-channel);         /* Make it is positive num forever */
-    configuration.complementary = (channel > 0) ? (RT_FALSE) : (RT_TRUE);   /* If nagetive, it's complementary */
+    /* Make it is positive num forever */
+    /*  ÉèÖÃÊä³öÍ¨µÀ */
+    configuration.channel = (channel > 0) ? (channel) : (-channel);
+
+    /* If channel is a positive number (0 ~ n), it means using normal output pin.
+     * If channel is a negative number (0 ~ -n), it means using complementary output pin. */
+    /*  Í¨µÀÊ§ÄÜ
+     * - channnel < 0
+          * Ê¹ÄÜ»¥²¹Í¨µÀ  ¹Ø±ÕÍ¨µÀ
+     * - channel > 0
+          * ¹Ø±Õ»¥²¹Í¨µÀ ¹Ø±ÕÍ¨µÀ
+     */
+    if(channel > 0)
+    {
+        result = rt_device_control(&device->parent, PWMN_CMD_DISABLE, &configuration);
+    }
+    else
+    {
+        result = rt_device_control(&device->parent, PWMN_CMD_ENABLE, &configuration);
+    }
+
     result = rt_device_control(&device->parent, PWM_CMD_DISABLE, &configuration);
 
     return result;
 }
-
+/*  PWMÉè±¸ÉèÖÃ */
 rt_err_t rt_pwm_set(struct rt_device_pwm *device, int channel, rt_uint32_t period, rt_uint32_t pulse)
 {
     rt_err_t result = RT_EOK;
@@ -169,15 +222,89 @@ rt_err_t rt_pwm_set(struct rt_device_pwm *device, int channel, rt_uint32_t perio
     {
         return -RT_EIO;
     }
-
-    configuration.channel = channel;
+    /* Í¨µÀ */
+    configuration.channel = (channel > 0) ? (channel) : (-channel);
+    /* ÖÜÆÚ µ¥Î»ns */
     configuration.period = period;
+    /* Âö³å¿í¶È µ¥Î»ns */
     configuration.pulse = pulse;
+    /* ²ÎÊýÉèÖÃ */
     result = rt_device_control(&device->parent, PWM_CMD_SET, &configuration);
 
     return result;
 }
+/*  */
+/*  ÉèÖÃPWMÖÜÆÚ */
+rt_err_t rt_pwm_set_period(struct rt_device_pwm *device, int channel, rt_uint32_t period)
+{
+    rt_err_t result = RT_EOK;
+    struct rt_pwm_configuration configuration = {0};
 
+    if (!device)
+    {
+        return -RT_EIO;
+    }
+    /*  */
+    configuration.channel = (channel > 0) ? (channel) : (-channel);
+    configuration.period = period;
+    result = rt_device_control(&device->parent, PWM_CMD_SET_PERIOD, &configuration);
+
+    return result;
+}
+/*  ÉèÖÃPWMÂö³å¿í¶È */
+rt_err_t rt_pwm_set_pulse(struct rt_device_pwm *device, int channel, rt_uint32_t pulse)
+{
+    rt_err_t result = RT_EOK;
+    struct rt_pwm_configuration configuration = {0};
+
+    if (!device)
+    {
+        return -RT_EIO;
+    }
+
+    configuration.channel = (channel > 0) ? (channel) : (-channel);
+    configuration.pulse = pulse;
+    result = rt_device_control(&device->parent, PWM_CMD_SET_PULSE, &configuration);
+
+    return result;
+}
+
+/*  ÉèÖÃËÀÇøÊ±¼ä */
+rt_err_t rt_pwm_set_dead_time(struct rt_device_pwm *device, int channel, rt_uint32_t dead_time)
+{
+    rt_err_t result = RT_EOK;
+    struct rt_pwm_configuration configuration = {0};
+
+    if (!device)
+    {
+        return -RT_EIO;
+    }
+
+    configuration.channel = (channel > 0) ? (channel) : (-channel);
+    configuration.dead_time = dead_time;
+    result = rt_device_control(&device->parent, PWM_CMD_SET_DEAD_TIME, &configuration);
+
+    return result;
+}
+
+/* ÉèÖÃÏàÎ» */
+rt_err_t rt_pwm_set_phase(struct rt_device_pwm *device, int channel, rt_uint32_t phase)
+{
+    rt_err_t result = RT_EOK;
+    struct rt_pwm_configuration configuration = {0};
+
+    if (!device)
+    {
+        return -RT_EIO;
+    }
+
+    configuration.channel = (channel > 0) ? (channel) : (-channel);
+    configuration.phase = phase;
+    result = rt_device_control(&device->parent, PWM_CMD_SET_PHASE, &configuration);
+
+    return result;
+}
+/*  »ñÈ¡PWMÅäÖÃ  */
 rt_err_t rt_pwm_get(struct rt_device_pwm *device, struct rt_pwm_configuration *cfg)
 {
     rt_err_t result = RT_EOK;
@@ -186,142 +313,148 @@ rt_err_t rt_pwm_get(struct rt_device_pwm *device, struct rt_pwm_configuration *c
     {
         return -RT_EIO;
     }
-
+    /*  »ñÈ¡Éè±¸²ÎÊý */
     result = rt_device_control(&device->parent, PWM_CMD_GET, cfg);
 
     return result;
 }
 
 #ifdef RT_USING_FINSH
+#include <stdlib.h>
+#include <string.h>
 #include <finsh.h>
 
-FINSH_FUNCTION_EXPORT_ALIAS(rt_pwm_enable, pwm_enable, enable pwm by channel.);
-FINSH_FUNCTION_EXPORT_ALIAS(rt_pwm_set, pwm_set, set pwm.);
-
-#ifdef FINSH_USING_MSH
-static int pwm_enable(int argc, char **argv)
+static int pwm(int argc, char **argv)
 {
-    int result = 0;
-    struct rt_device_pwm *device = RT_NULL;
-
-    if (argc != 3)
-    {
-        rt_kprintf("Usage: pwm_enable pwm1 1\n");
-        rt_kprintf("       pwm_enable <pwm_dev> <channel/-channel>\n");
-        result = -RT_ERROR;
-        goto _exit;
-    }
-
-    device = (struct rt_device_pwm *)rt_device_find(argv[1]);
-    if (!device)
-    {
-        result = -RT_EIO;
-        goto _exit;
-    }
-
-    /* If channel is complementary(1), make the channel number to nagetive */
-    result = rt_pwm_enable(device, atoi(argv[2]));
-
-_exit:
-    return result;
-}
-MSH_CMD_EXPORT(pwm_enable, pwm_enable <pwm_dev> <channel/-channel>);
-
-static int pwm_disable(int argc, char **argv)
-{
-    int result = 0;
-    struct rt_device_pwm *device = RT_NULL;
-
-    if (argc != 3)
-    {
-        rt_kprintf("Usage: pwm_disable pwm1 1\n");
-        rt_kprintf("       pwm_disable <pwm_dev> <channel/-channel> \n");
-        result = -RT_ERROR;
-        goto _exit;
-    }
-
-    device = (struct rt_device_pwm *)rt_device_find(argv[1]);
-    if (!device)
-    {
-        result = -RT_EIO;
-        goto _exit;
-    }
-
-    /* If channel is complementary(1), make the channel number to nagetive */
-    result = rt_pwm_disable(device, atoi(argv[2]));
-
-_exit:
-    return result;
-}
-MSH_CMD_EXPORT(pwm_disable, pwm_disable <pwm_dev> <channel/-channel>);
-
-static int pwm_set(int argc, char **argv)
-{
-    int result = 0;
-    struct rt_device_pwm *device = RT_NULL;
-
-    if (argc != 5)
-    {
-        rt_kprintf("Usage: pwm_set pwm1 1 100 50\n");
-        rt_kprintf("Usage: pwm_set <pwm_dev> <channel> <period> <pulse>\n");
-        result = -RT_ERROR;
-        goto _exit;
-    }
-
-    device = (struct rt_device_pwm *)rt_device_find(argv[1]);
-    if (!device)
-    {
-        result = -RT_EIO;
-        goto _exit;
-    }
-
-    result = rt_pwm_set(device, atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
-
-_exit:
-    return result;
-}
-MSH_CMD_EXPORT(pwm_set, pwm_set <pwm_dev> <channel> <period> <pulse>);
-
-
-static int pwm_get(int argc, char **argv)
-{
-    int result = 0;
-    struct rt_device_pwm *device = RT_NULL;
+    rt_err_t result = -RT_ERROR;
+    char *result_str;
+    static struct rt_device_pwm *pwm_device = RT_NULL;
     struct rt_pwm_configuration cfg = {0};
 
-    if (argc != 3)
+    if(argc > 1)
     {
-        rt_kprintf("Usage: pwm_get pwm1 1\n");
-        rt_kprintf("       pwm_get <pwm_dev> <channel>\n");
-        result = -RT_ERROR;
-        goto _exit;
-    }
-
-    device = (struct rt_device_pwm *)rt_device_find(argv[1]);
-    if (!device)
-    {
-        result = -RT_EIO;
-        goto _exit;
-    }
-
-    cfg.channel = atoi(argv[2]);
-    result = rt_pwm_get(device, &cfg);
-    if (result != RT_EOK)
-    {
-        rt_kprintf("Get info of device: [%s] error.\n", argv[1]);
+        if(!strcmp(argv[1], "probe"))
+        {
+            if(argc == 3)
+            {
+                pwm_device = (struct rt_device_pwm *)rt_device_find(argv[2]);
+                result_str = (pwm_device == RT_NULL) ? "failure" : "success";
+                rt_kprintf("probe %s %s\n", argv[2], result_str);
+            }
+            else
+            {
+                rt_kprintf("pwm probe <device name>                  - probe pwm by name\n");
+            }
+        }
+        else
+        {
+            if(pwm_device == RT_NULL)
+            {
+                rt_kprintf("Please using 'pwm probe <device name>' first.\n");
+                return -RT_ERROR;
+            }
+            if(!strcmp(argv[1], "enable"))
+            {
+                if(argc == 3)
+                {
+                    result = rt_pwm_enable(pwm_device, atoi(argv[2]));
+                    result_str = (result == RT_EOK) ? "success" : "failure";
+                    rt_kprintf("%s channel %d is enabled %s \n", pwm_device->parent.parent.name, atoi(argv[2]), result_str);
+                }
+                else
+                {
+                    rt_kprintf("pwm enable <channel>                     - enable pwm channel\n");
+                    rt_kprintf("    e.g. MSH >pwm enable  1              - PWM_CH1  nomal\n");
+                    rt_kprintf("    e.g. MSH >pwm enable -1              - PWM_CH1N complememtary\n");
+                }
+            }
+            else if(!strcmp(argv[1], "disable"))
+            {
+                if(argc == 3)
+                {
+                    result = rt_pwm_disable(pwm_device, atoi(argv[2]));
+                }
+                else
+                {
+                    rt_kprintf("pwm disable <channel>                    - disable pwm channel\n");
+                }
+            }
+            else if(!strcmp(argv[1], "get"))
+            {
+                cfg.channel = atoi(argv[2]);
+                result = rt_pwm_get(pwm_device, &cfg);
+                if(result == RT_EOK)
+                {
+                    rt_kprintf("Info of device [%s] channel [%d]:\n",pwm_device, atoi(argv[2]));
+                    rt_kprintf("period      : %d\n", cfg.period);
+                    rt_kprintf("pulse       : %d\n", cfg.pulse);
+                    rt_kprintf("Duty cycle  : %d%%\n",(int)(((double)(cfg.pulse)/(cfg.period)) * 100));
+                }
+                else
+                {
+                    rt_kprintf("Get info of device: [%s] error.\n", pwm_device);
+                }
+            }
+            else if (!strcmp(argv[1], "set"))
+            {
+                if(argc == 5)
+                {
+                    result = rt_pwm_set(pwm_device, atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
+                    rt_kprintf("pwm info set on %s at channel %d\n",pwm_device,(rt_base_t)atoi(argv[2]));
+                }
+                else
+                {
+                    rt_kprintf("Set info of device: [%s] error\n", pwm_device);
+                    rt_kprintf("Usage: pwm set <channel> <period> <pulse>\n");
+                }
+            }
+            else if(!strcmp(argv[1], "phase"))
+            {
+                if(argc == 4)
+                {
+                    result = rt_pwm_set_phase(pwm_device, atoi(argv[2]),atoi(argv[3]));
+                    result_str = (result == RT_EOK) ? "success" : "failure";
+                    rt_kprintf("%s phase is set %d \n", pwm_device->parent.parent.name, (rt_base_t)atoi(argv[3]));
+                }
+            }
+            else if(!strcmp(argv[1], "dead_time"))
+            {
+                if(argc == 4)
+                {
+                    result = rt_pwm_set_dead_time(pwm_device, atoi(argv[2]),atoi(argv[3]));
+                    result_str = (result == RT_EOK) ? "success" : "failure";
+                    rt_kprintf("%s dead_time is set %d \n", pwm_device->parent.parent.name, (rt_base_t)atoi(argv[3]));
+                }
+            }
+            else
+            {
+                rt_kprintf("Usage: \n");
+                rt_kprintf("pwm probe      <device name>                - probe pwm by name\n");
+                rt_kprintf("pwm enable     <channel>                    - enable pwm channel\n");
+                rt_kprintf("pwm disable    <channel>                    - disable pwm channel\n");
+                rt_kprintf("pwm get        <channel>                    - get pwm channel info\n");
+                rt_kprintf("pwm set        <channel> <period> <pulse>   - set pwm channel info\n");
+                rt_kprintf("pwm phase      <channel> <phase>            - set pwm phase\n");
+                rt_kprintf("pwm dead_time  <channel> <dead_time>        - set pwm dead time\n");
+                result = - RT_ERROR;
+            }
+        }
     }
     else
     {
-        rt_kprintf("Get info of device: [%s]:\n", argv[1]);
-        rt_kprintf("period     : %d\n", cfg.period);
-        rt_kprintf("pulse      : %d\n", cfg.pulse);
-        rt_kprintf("Duty cycle : %d%%\n", (int)(((double)(cfg.pulse)/(cfg.period)) * 100));
+        rt_kprintf("Usage: \n");
+        rt_kprintf("pwm probe      <device name>               - probe pwm by name\n");
+        rt_kprintf("pwm enable     <channel>                   - enable pwm channel\n");
+        rt_kprintf("pwm disable    <channel>                   - disable pwm channel\n");
+        rt_kprintf("pwm get        <channel>                   - get pwm channel info\n");
+        rt_kprintf("pwm set        <channel> <period> <pulse>  - set pwm channel info\n");
+        rt_kprintf("pwm phase      <channel> <phase>           - set pwm phase\n");
+        rt_kprintf("pwm dead_time  <channel> <dead_time>       - set pwm dead time\n");
+        result = - RT_ERROR;
     }
 
-_exit:
-    return result;
+    return RT_EOK;
 }
-MSH_CMD_EXPORT(pwm_get, pwm_get <pwm_dev> <channel>);
+MSH_CMD_EXPORT(pwm, pwm [option]);
 
-#endif /* FINSH_USING_MSH */
 #endif /* RT_USING_FINSH */
