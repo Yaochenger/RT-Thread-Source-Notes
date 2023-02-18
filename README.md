@@ -5,33 +5,11 @@
 
 RT-Thread内核源码中文注释，基于4.04版本。
 
-### 【1】内核源码中文注释
+### 【1】[内核源码中文注释](https://github.com/Yaochenger/RT-Thread-Source-Notes/tree/main/%E3%80%901%E3%80%91%E5%86%85%E6%A0%B8%E4%B8%AD%E6%96%87%E6%B3%A8%E9%87%8A)
 
-- 2023/2/9 添加scheduler.c的中文注释
-- 2023/2/9 添加object.c的中文注释
-- 2023/2/10 添加thread.c的中文注释
-- 2023/2/11添加timer.c的中文注释
-- 2023/2/11添加irq.c的中文注释
-- 2023/2/11添加mem.c的中文注释
-- 2023/2/11添加idle.c的中文注释
-- 2023/2/11添加clock.c的中文注释
-- 2023/2/12添加components.c的中文注释
-- 2023/2/12添加device.c的中文注释
-- ...
+### 【2】[设备驱动注释与注册过程分析](https://github.com/Yaochenger/RT-Thread-Source-Notes/tree/main/%E3%80%902%E3%80%91%E9%A9%B1%E5%8A%A8%E6%BA%90%E7%A0%81%E6%B3%A8%E9%87%8A)
 
-### 【2】设备驱动注释与注册过程分析
-
-- 2023/2/13 ~ 2023/2/14 添加串口设备框架
-- 2023/2/13 ~ 2023/2/15 添加wSPI设备框架
-- 2023/2/16 ~ 2023/2/18 添加PWM设备框架
-- ...
-
-### 【3】设备继承关系
-
-- 添加pin
-- 添加uart
-- 添加spi
-- ...
+### 【3】[设备继承关系分析](https://github.com/Yaochenger/RT-Thread-Source-Notes/tree/main/%E3%80%903%E3%80%91%E6%B3%A8%E5%86%8C%E8%BF%87%E7%A8%8B%E5%88%86%E6%9E%90)
 
 <p align="center">
 <img src="figure/bj.jpg" width="80%" >
