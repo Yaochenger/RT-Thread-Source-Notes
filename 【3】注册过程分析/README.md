@@ -3,6 +3,7 @@
 - 添加pin
 - 添加uart
 - 添加spi
+- 添加IIC
 - ...
 
 
