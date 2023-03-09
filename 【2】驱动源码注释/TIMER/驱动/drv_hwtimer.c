@@ -74,11 +74,13 @@ void ch32_get_pclk_doubler(rt_uint32_t *pclk1_doubler, rt_uint32_t *pclk2_double
         *pclk2_doubler = 2;
     }
 }
-/* 定时器初始化 */
+/* 定时器初始化 */ /* */
 static void ch32_hwtimer_init(struct rt_hwtimer_device *timer, rt_uint32_t state)
 {
     RT_ASSERT(timer != RT_NULL);
+    /* CH32定时器句柄 */
     TIM_HandleTypeDef *tim = RT_NULL;
+    /* 时钟句柄 */
     RCC_ClocksTypeDef RCC_ClockStruct;
     NVIC_InitTypeDef NVIC_InitStruct;
     /* 临时定时器设备 */
@@ -109,15 +111,16 @@ static void ch32_hwtimer_init(struct rt_hwtimer_device *timer, rt_uint32_t state
         }
         else
         {
-            /* */
+            /* 设置分频系数 */
             RCC_APB1PeriphClockCmd(tim->rcc, ENABLE);
+            /* 分频值 */
             prescaler_value = (RCC_ClockStruct.PCLK1_Frequency * pclk1_doubler / 10000) - 1;
         }
         /* 初始化分频系数 */
         tim->init.TIM_Prescaler = prescaler_value;
         /* 设置时钟分割 与输入捕获和输出滤波相关 */
         tim->init.TIM_ClockDivision = TIM_CKD_DIV1;
-        /* 时钟周期 */
+        /* 初始化时钟周期 单位是计数个数*/
         tim->init.TIM_Period = 10000 - 1;
         /* 延时周期 最终的延时周期为 T * TIM_RepetitionCounter  */
         tim->init.TIM_RepetitionCounter = 0;
@@ -152,7 +155,6 @@ static void ch32_hwtimer_init(struct rt_hwtimer_device *timer, rt_uint32_t state
         TIM_ITConfig(tim->instance, TIM_IT_Update, ENABLE);
     }
 }
-
 /* 硬件定时器启动 */
 static rt_err_t ch32_hwtimer_start(struct rt_hwtimer_device *timer, rt_uint32_t cnt, rt_hwtimer_mode_t mode)
 {
@@ -221,7 +223,7 @@ static rt_err_t ch32_hwtimer_control(struct rt_hwtimer_device *timer, rt_uint32_
     rt_uint32_t pclk1_doubler, pclk2_doubler;
     /* 获取CH32定时器句柄 */
     tim = (TIM_HandleTypeDef *)timer->parent.user_data;
-
+    /* 设置定时器频率 */
     switch (cmd)
     {
     case HWTIMER_CTRL_FREQ_SET:
@@ -230,10 +232,11 @@ static rt_err_t ch32_hwtimer_control(struct rt_hwtimer_device *timer, rt_uint32_
         rt_uint16_t val;
         RCC_ClocksTypeDef RCC_ClockStruct;
 
-        /* set timer frequence */
+        /* 获取期望频率 */
         freq = *((rt_uint32_t *)args);
-
+        /* 获取定时器时钟总线分频系数 */
         ch32_get_pclk_doubler(&pclk1_doubler, &pclk2_doubler);
+        /* 获取时钟中线频率 */
         RCC_GetClocksFreq(&RCC_ClockStruct);
 
         if(tim->instance == TIM1 || tim->instance == TIM8 ||
@@ -246,13 +249,14 @@ static rt_err_t ch32_hwtimer_control(struct rt_hwtimer_device *timer, rt_uint32_
             val = RCC_ClockStruct.PCLK1_Frequency * pclk1_doubler / freq;
         }
 
+        /* 更新分频值 */
         /* Update frequency value */
         TIM_PrescalerConfig(tim->instance, val - 1, TIM_PSCReloadMode_Immediate);
 
         result = RT_EOK;
         break;
     }
-
+    /* 定时器控制模式设置 */
     case HWTIMER_CTRL_MODE_SET:
     {
         if (*(rt_hwtimer_mode_t *)args == HWTIMER_MODE_ONESHOT)

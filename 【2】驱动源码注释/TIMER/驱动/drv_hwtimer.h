@@ -16,31 +16,28 @@
 #include "ch32v30x_tim.h"
 
 #ifdef BSP_USING_HWTIMER
-/* CH32定时器句柄
- * 定时器基地址
- * 定时器属性
- * 时钟
- * */
+
+/* CH32定时器句柄 */
 typedef struct
 {
+    /* CH32定时器句柄 */
     TIM_TypeDef *instance;
+    /* 定时器属性 */
     TIM_TimeBaseInitTypeDef init;
+    /* 定时器所在总线时钟 */
     rt_uint32_t rcc;
 
 }TIM_HandleTypeDef;
 
-/*
- * CH32定时器驱动句柄
- * RT-Thread定时器设备
- * CH32定时器句柄
- *   中断号
- *  设备名称
- *  */
 struct ch32_hwtimer
 {
+    /* RT-Thread 定时器设备 */
     rt_hwtimer_t device;
+    /* CH32定时器参数句柄 */
     TIM_HandleTypeDef handle;
+    /* 中断源 */
     IRQn_Type irqn;
+    /* CH32的定时器设备名称 */
     char *name;
 };
 

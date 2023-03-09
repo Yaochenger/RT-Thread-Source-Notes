@@ -81,13 +81,13 @@ rt_inline rt_uint32_t timeout_calc(rt_hwtimer_t *timer, rt_hwtimerval_t *tv)
             }
         }
     }
-    /* 设置定时器循环时间 */
+    /* 设置定时器溢出 循环次数 */
     timer->cycles = i;
-    /* 定时器重装载周期 */
+    /* 定时器重装载 次数 */
     timer->reload = i;
-    /* 超时时间 */
+    /* 当前时钟周期下 的超时时间 */
     timer->period_sec = timeout;
-    /* 计算处理来计数器的填充值 在当前的分频值 定时器的定时时间的误差最小 */
+    /* 设置计数器的填充值 在当前的分频值下 期望定时时间下的定时器的重装载值 定时器的定时时间的误差最小 */
     counter = (rt_uint32_t)(timeout * timer->freq);
 
     return counter;
@@ -104,20 +104,23 @@ static rt_err_t rt_hwtimer_init(struct rt_device *dev)
     /* 初始化定时器频率 */
     if ((1000000 <= timer->info->maxfreq) && (1000000 >= timer->info->minfreq))
     {
+        /* 超出框架允许范围 */
         timer->freq = 1000000;
     }
     else
-    {
+    {   /* 初始化为允许的最小的频率 */
         timer->freq = timer->info->minfreq;
     }
     /* 定时器模式 单次模式 */
     timer->mode = HWTIMER_MODE_ONESHOT;
+    /* 初始化进出中断的循环次数为 0 */
     timer->cycles = 0;
+    /* 定时器溢出的次数 */
     timer->overflow = 0;
 
     /* 初始化定时器 */
     if (timer->ops->init)
-    {
+    {   /* */
         timer->ops->init(timer, 1);
     }
     else
@@ -179,36 +182,39 @@ static rt_size_t rt_hwtimer_read(struct rt_device *dev, rt_off_t pos, void *buff
     rt_base_t level;
     rt_int32_t overflow;
     float t;
-
+    /* 强制转换 */
     timer = (rt_hwtimer_t *)dev;
     if (timer->ops->count_get == RT_NULL)
         return 0;
     /* 关闭全局中断 */
     level = rt_hw_interrupt_disable();
-    /* 获取定时器计数值 */
+    /* 获取计数器CNT计数值 */
     cnt = timer->ops->count_get(timer);
     /* 定时器溢出 */
     overflow = timer->overflow;
     /* 开全局中断 */
     rt_hw_interrupt_enable(level);
-    /* 定时器计数模式 */
+    /* 若定时器为向下计数模式  */
     if (timer->info->cntmode == HWTIMER_CNTMODE_DW)
     {
+        /* 已经完成计数的计数值 = 重装载计数值 - 计数器当前的计数值 */
         cnt = (rt_uint32_t)(timer->freq * timer->period_sec) - cnt;
     }
-
+    /* 超时次数 * 超时时间 + 已经完成计数的计数值 */
     t = overflow * timer->period_sec + cnt/(float)timer->freq;
     /* 秒 */
     tv.sec = (rt_int32_t)t;
     /* 微秒 */
     tv.usec = (rt_int32_t)((t - tv.sec) * 1000000);
+    /* 判断数据长度 */
     size = size > sizeof(tv)? sizeof(tv) : size;
+    /* 将保存的时间值拷贝至buffer */
     rt_memcpy(buffer, &tv, size);
 
     return size;
 }
 
-/* */
+/* 定时器写 */
 static rt_size_t rt_hwtimer_write(struct rt_device *dev, rt_off_t pos, const void *buffer, rt_size_t size)
 {
     rt_base_t level;
@@ -226,23 +232,25 @@ static rt_size_t rt_hwtimer_write(struct rt_device *dev, rt_off_t pos, const voi
     timer->ops->stop(timer);
     /* 关全局中断 */
     level = rt_hw_interrupt_disable();
-    /* 重置溢出状态 */
+    /* 重置溢出次数 */
     timer->overflow = 0;
     /* 开全局中断 */
     rt_hw_interrupt_enable(level);
-
+    /* 获取最佳的重装载计数值 */
     t = timeout_calc(timer, (rt_hwtimerval_t*)buffer);
+    /* */
     if ((timer->cycles <= 1) && (timer->mode == HWTIMER_MODE_ONESHOT))
     {
         opm = HWTIMER_MODE_ONESHOT;
     }
-
+    /* 启动定时器 */
     if (timer->ops->start(timer, t, opm) != RT_EOK)
         size = 0;
 
     return size;
 }
 
+/* 定时器控制 */
 static rt_err_t rt_hwtimer_control(struct rt_device *dev, int cmd, void *args)
 {
     rt_base_t level;
@@ -250,11 +258,12 @@ static rt_err_t rt_hwtimer_control(struct rt_device *dev, int cmd, void *args)
     rt_hwtimer_t *timer;
 
     timer = (rt_hwtimer_t *)dev;
-
+    /* 判断命令 */
     switch (cmd)
-    {
+    {/* 控制硬件定时器停止 */
     case HWTIMER_CTRL_STOP:
     {
+        /* 停止定时器 */
         if (timer->ops->stop != RT_NULL)
         {
             timer->ops->stop(timer);
@@ -268,28 +277,33 @@ static rt_err_t rt_hwtimer_control(struct rt_device *dev, int cmd, void *args)
     case HWTIMER_CTRL_FREQ_SET:
     {
         rt_int32_t *f;
-
+        /* */
         if (args == RT_NULL)
         {
             result = -RT_EEMPTY;
             break;
         }
-
+        /* 获取频率值 */
         f = (rt_int32_t*)args;
+        /* 判断定时器频率是否合法 */
         if ((*f > timer->info->maxfreq) || (*f < timer->info->minfreq))
         {
             LOG_W("frequency setting out of range! It will maintain at %d Hz", timer->freq);
             result = -RT_EINVAL;
             break;
         }
-
+        /* 判断控制函数是否被注册 */
         if (timer->ops->control != RT_NULL)
         {
+            /* 执行注册函数 */
             result = timer->ops->control(timer, cmd, args);
             if (result == RT_EOK)
             {
+                /* 关全局中断 */
                 level = rt_hw_interrupt_disable();
+                /* 设置定时器频率 */
                 timer->freq = *f;
+                /* 开全局中断 */
                 rt_hw_interrupt_enable(level);
             }
         }
@@ -298,7 +312,7 @@ static rt_err_t rt_hwtimer_control(struct rt_device *dev, int cmd, void *args)
             result = -RT_ENOSYS;
         }
     }
-    break;
+    break;/* 获取定时器信息 */
     case HWTIMER_CTRL_INFO_GET:
     {
         if (args == RT_NULL)
@@ -309,7 +323,7 @@ static rt_err_t rt_hwtimer_control(struct rt_device *dev, int cmd, void *args)
 
         *((struct rt_hwtimer_info*)args) = *timer->info;
     }
-    break;
+    break;/* 设置定时器模式 */
     case HWTIMER_CTRL_MODE_SET:
     {
         rt_hwtimer_mode_t *m;
@@ -341,30 +355,33 @@ static rt_err_t rt_hwtimer_control(struct rt_device *dev, int cmd, void *args)
 
     return result;
 }
-
+/* 定时器中断注册 */
 void rt_device_hwtimer_isr(rt_hwtimer_t *timer)
 {
     rt_base_t level;
 
     RT_ASSERT(timer != RT_NULL);
-
+    /* 关全局中断 */
     level = rt_hw_interrupt_disable();
 
     timer->overflow ++;
-
+    /* 需要循环的次数非空 */
     if (timer->cycles != 0)
     {
+        /* 进一次中断 减去一次需要循环的次数 */
         timer->cycles --;
     }
-
+    /* 需要循环的次数为空 可以执行中断处理 */
     if (timer->cycles == 0)
     {
+        /* 重置期望的循环次数 */
         timer->cycles = timer->reload;
-
+        /* 使能全局中断 */
         rt_hw_interrupt_enable(level);
-
+        /* 单次模式 */
         if (timer->mode == HWTIMER_MODE_ONESHOT)
         {
+            /* 停止定时器 */
             if (timer->ops->stop != RT_NULL)
             {
                 timer->ops->stop(timer);
@@ -377,7 +394,7 @@ void rt_device_hwtimer_isr(rt_hwtimer_t *timer)
         }
     }
     else
-    {
+    {/* 使能全局中断 */
         rt_hw_interrupt_enable(level);
     }
 }

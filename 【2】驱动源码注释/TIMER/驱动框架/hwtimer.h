@@ -16,6 +16,7 @@ extern "C" {
 #endif
 
 /* Timer Control Command */
+/* 定时器控制命令 */
 typedef enum
 {
     HWTIMER_CTRL_FREQ_SET = RT_DEVICE_CTRL_BASE(Timer) + 0x01,           /* set the count frequency */
@@ -24,7 +25,7 @@ typedef enum
     HWTIMER_CTRL_MODE_SET = RT_DEVICE_CTRL_BASE(Timer) + 0x04            /* Setting the timing mode(oneshot/period) */
 } rt_hwtimer_ctrl_t;
 
-/* Timing Mode */
+/* 定时器模式 */
 typedef enum
 {
     HWTIMER_MODE_ONESHOT = 0x01,
@@ -52,7 +53,7 @@ struct rt_hwtimer_ops
     rt_err_t (*control)(struct rt_hwtimer_device *timer, rt_uint32_t cmd, void *args);
 };
 
-/* Timer Feature Information */
+/* 定时器信息 */
 struct rt_hwtimer_info
 {
     rt_int32_t maxfreq;    /* the maximum count frequency timer support */
